@@ -2,6 +2,20 @@ import { env } from "../../shared/config/env.js";
 import { buildTenantRedirectUrl } from "../../shared/tenant/build-tenant-url.js";
 import { companyStore } from "../../company-service/companies/model.js";
 
+function resolveAppKind(appKindHeader, host) {
+  if (appKindHeader === "admin" || appKindHeader === "client") {
+    return appKindHeader;
+  }
+
+  const hostname = (host || "").split(":")[0].toLowerCase();
+
+  if (env.adminAppDomains.includes(hostname)) {
+    return "admin";
+  }
+
+  return "client";
+}
+
 function resolveBestRootDomain(host) {
   const hostname = (host || "").split(":")[0].toLowerCase();
   const configuredDomains = [...env.appRootDomains, ...env.localhostRootDomains];
@@ -11,7 +25,7 @@ function resolveBestRootDomain(host) {
 }
 
 export const sessionService = {
-  async getContext({ auth, tenant, host, protocol, pathname = "/" }) {
+  async getContext({ auth, tenant, host, protocol, pathname = "/", appKind = null }) {
     const user = {
       sub: auth.sub,
       email: auth.email,
@@ -19,11 +33,12 @@ export const sessionService = {
       role: auth.role,
       roles: auth.roles,
     };
+    const resolvedAppKind = resolveAppKind(appKind, host);
 
     if (auth.role === "super_admin") {
       return {
         user,
-        tenant: tenant ? { slug: tenant.slug, accountId: tenant.accountId } : null,
+        tenant: null,
         expectedTenant: null,
         redirectUrl: null,
         birthdayAvailable: false,
@@ -31,18 +46,19 @@ export const sessionService = {
     }
 
     const expectedCompany = auth.accountId ? await companyStore.findByAccountId(auth.accountId) : null;
-    const port = host.includes(":") ? host.split(":")[1] : "";
     const rootDomain = resolveBestRootDomain(host);
-    const needsRedirect = expectedCompany && (!tenant || tenant.accountId !== expectedCompany.accountId);
+    const needsRedirect = resolvedAppKind === "client" && expectedCompany && (!tenant || tenant.accountId !== expectedCompany.accountId);
+    const resolvedTenant = resolvedAppKind === "admin"
+      ? (expectedCompany ? { slug: expectedCompany.slug, accountId: expectedCompany.accountId } : null)
+      : (tenant ? { slug: tenant.slug, accountId: tenant.accountId } : null);
 
     return {
       user,
-      tenant: tenant ? { slug: tenant.slug, accountId: tenant.accountId } : null,
+      tenant: resolvedTenant,
       expectedTenant: expectedCompany ? { slug: expectedCompany.slug, accountId: expectedCompany.accountId } : null,
       redirectUrl: needsRedirect
         ? buildTenantRedirectUrl({
             protocol,
-            port,
             slug: expectedCompany.slug,
             rootDomain,
             pathname,

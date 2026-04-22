@@ -14,6 +14,7 @@ export const env = {
   port: Number(process.env.PORT || 4000),
   nodeEnv: process.env.NODE_ENV || "development",
   appRootDomains: (process.env.APP_ROOT_DOMAINS || "mydomain.com").split(",").map((value) => value.trim().toLowerCase()).filter(Boolean),
+  adminAppDomains: (process.env.ADMIN_APP_DOMAINS || "admin.mydomain.com,hq.mydomain.com,admin.localhost,hq.localhost").split(",").map((value) => value.trim().toLowerCase()).filter(Boolean),
   localhostRootDomains: (process.env.LOCALHOST_ROOT_DOMAINS || "localhost,lvh.me").split(",").map((value) => value.trim().toLowerCase()).filter(Boolean),
   allowedLocalAppPorts: (process.env.ALLOWED_LOCAL_APP_PORTS || "3000,3001").split(",").map((value) => value.trim()).filter(Boolean),
   allowedProductionAppPorts: (process.env.ALLOWED_PRODUCTION_APP_PORTS || "").split(",").map((value) => value.trim()).filter(Boolean),

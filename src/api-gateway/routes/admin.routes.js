@@ -1,7 +1,5 @@
 import { Router } from "express";
 import { authenticate } from "../middleware/authenticate.js";
-import { attachTenant } from "../middleware/attach-tenant.js";
-import { enforceTenantMatch } from "../middleware/enforce-tenant-match.js";
 import { birthdayAdminRoutes, birthdaySettingsAdminRoutes, companyAdminRoutes, tierSettingsAdminRoutes } from "../../company-service/index.js";
 import { rewardClaimsAdminRoutes, rewardsAdminRoutes } from "../../rewards-service/index.js";
 import { campaignAdminRoutes } from "../../campaign-service/index.js";
@@ -9,7 +7,7 @@ import { clientAdminRoutes, transactionAdminRoutes } from "../../client-service/
 
 const router = Router();
 
-router.use(authenticate, attachTenant({ required: false }), enforceTenantMatch);
+router.use(authenticate);
 router.use("/company", companyAdminRoutes);
 router.use("/tier-settings", tierSettingsAdminRoutes);
 router.use("/birthday-settings", birthdaySettingsAdminRoutes);

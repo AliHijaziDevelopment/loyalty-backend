@@ -4,6 +4,7 @@ export const sessionController = {
   async getContext(req, res) {
     const appOrigin = req.headers["x-app-origin"];
     const appPathname = req.headers["x-app-pathname"];
+    const appKind = req.headers["x-app-kind"];
     const originUrl = typeof appOrigin === "string" ? new URL(appOrigin) : null;
     const protocol = originUrl?.protocol.replace(":", "") || req.headers["x-forwarded-proto"] || req.protocol || "http";
     const host = originUrl?.host || req.headers["x-forwarded-host"] || req.headers.host || "";
@@ -15,6 +16,7 @@ export const sessionController = {
         host,
         protocol,
         pathname: typeof appPathname === "string" ? appPathname : "/",
+        appKind: typeof appKind === "string" ? appKind : null,
       }),
     });
   },

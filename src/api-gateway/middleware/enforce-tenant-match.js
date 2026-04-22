@@ -30,14 +30,12 @@ export async function enforceTenantMatch(req, _res, next) {
   const originUrl = typeof appOrigin === "string" ? new URL(appOrigin) : null;
   const forwardedProtocol = originUrl?.protocol.replace(":", "") || req.headers["x-forwarded-proto"] || req.protocol || "http";
   const forwardedHost = originUrl?.host || req.headers["x-forwarded-host"] || req.headers.host || "";
-  const port = forwardedHost.includes(":") ? forwardedHost.split(":")[1] : "";
   const targetPathname = typeof appPathname === "string" ? appPathname : "/";
 
   if (!req.tenant?.accountId) {
     const redirectUrl = expectedCompany
       ? buildTenantRedirectUrl({
           protocol: forwardedProtocol,
-          port,
           slug: expectedCompany.slug,
           rootDomain: resolveBestRootDomain(forwardedHost),
           pathname: targetPathname,
@@ -56,7 +54,6 @@ export async function enforceTenantMatch(req, _res, next) {
     const redirectUrl = expectedCompany
       ? buildTenantRedirectUrl({
           protocol: forwardedProtocol,
-          port,
           slug: expectedCompany.slug,
           rootDomain: resolveBestRootDomain(forwardedHost),
           pathname: targetPathname,
