@@ -28,6 +28,8 @@ export const companyUserService = {
       throw new AppError(409, "This Keycloak user is already assigned to the selected company.");
     }
 
+    await keycloakAdminService.assignRealmRole(keycloakUser.id, payload.role);
+
     return companyUserStore.create({
       accountId: payload.accountId,
       role: payload.role,
