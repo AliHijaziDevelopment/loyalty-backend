@@ -1,7 +1,6 @@
 import { AppError } from "../../shared/errors/app-error.js";
 import { clientStore } from "../../client-service/clients/model.js";
 import { transactionService } from "../../client-service/transactions/service.js";
-import { tierSettingsService } from "../../company-service/tier-settings/service.js";
 import { emitRewardRedeemed } from "../../shared/realtime/events.js";
 import { rewardClaimsService } from "../reward-claims/service.js";
 import { rewardsStore } from "./model.js";
@@ -49,8 +48,7 @@ export const rewardsService = {
       points: -reward.pointsRequired,
       redemptionsCount: 1,
     });
-    const nextTier = await tierSettingsService.resolveTier(accountId, updatedMetrics.visits, updatedMetrics.redemptionsCount);
-    const updatedClient = await clientStore.updateById(accountId, client.id, { tier: nextTier });
+    const updatedClient = updatedMetrics;
 
     const transaction = await transactionService.createTransaction(accountId, {
       clientId: client.id,

@@ -91,17 +91,26 @@ const clientSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
-    tier: {
+    tierId: {
       type: String,
-      default: "Silver",
+      default: null,
       trim: true,
-      enum: ["Silver", "Gold", "VIP"],
+      index: true,
     },
     status: {
       type: String,
       default: "active",
       enum: ["active", "archived"],
       trim: true,
+    },
+    fcmTokens: {
+      type: [String],
+      default: [],
+    },
+    hasClaimedNotificationReward: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
   },
   {
@@ -115,6 +124,7 @@ clientSchema.index({ accountId: 1, phone: 1 }, { unique: true });
 clientSchema.index({ accountId: 1, email: 1 });
 clientSchema.index({ accountId: 1, username: 1 });
 clientSchema.index({ accountId: 1, dateOfBirth: 1 });
+clientSchema.index({ accountId: 1, tierId: 1 });
 
 clientSchema.set("toJSON", {
   transform: (_doc, ret) => {
@@ -139,6 +149,12 @@ const normalizeClient = (document, options = {}) => {
       json.qrSecret = document.qrSecret;
     }
 
+    if (options.includeFcmTokens) {
+      json.fcmTokens = document.fcmTokens || [];
+    } else {
+      delete json.fcmTokens;
+    }
+
     return json;
   }
 
@@ -150,6 +166,10 @@ const normalizeClient = (document, options = {}) => {
 
   if (!options.includeQrSecret) {
     delete normalized.qrSecret;
+  }
+
+  if (!options.includeFcmTokens) {
+    delete normalized.fcmTokens;
   }
 
   return normalized;
@@ -201,6 +221,9 @@ export const clientStore = {
   async findById(accountId, id) {
     return normalizeClient(await ClientModel.findOne({ _id: id, accountId }));
   },
+  async findByIdWithFcmTokens(accountId, id) {
+    return normalizeClient(await ClientModel.findOne({ _id: id, accountId }), { includeFcmTokens: true });
+  },
   async findByIdIncludingArchived(accountId, id) {
     return normalizeClient(await ClientModel.findOne({ _id: id, accountId }));
   },
@@ -230,6 +253,30 @@ export const clientStore = {
     return normalizeClient(await ClientModel.findOneAndUpdate(
       { _id: id, accountId },
       { $set: payload },
+      { new: true },
+    ));
+  },
+  async addFcmToken(accountId, id, token) {
+    return normalizeClient(await ClientModel.findOneAndUpdate(
+      { _id: id, accountId },
+      { $addToSet: { fcmTokens: token } },
+      { new: true },
+    ), { includeFcmTokens: true });
+  },
+  async removeFcmTokens(accountId, id, tokens) {
+    return normalizeClient(await ClientModel.findOneAndUpdate(
+      { _id: id, accountId },
+      { $pull: { fcmTokens: { $in: tokens } } },
+      { new: true },
+    ), { includeFcmTokens: true });
+  },
+  async claimNotificationReward(accountId, id, points) {
+    return normalizeClient(await ClientModel.findOneAndUpdate(
+      { _id: id, accountId, hasClaimedNotificationReward: false },
+      {
+        $inc: { points },
+        $set: { hasClaimedNotificationReward: true },
+      },
       { new: true },
     ));
   },

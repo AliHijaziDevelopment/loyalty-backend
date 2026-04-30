@@ -1,6 +1,7 @@
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
+import path from "node:path";
 import { isAllowedAppOrigin } from "../shared/http/origin.js";
 import { requestContext } from "./middleware/request-context.js";
 import { corsErrorHandler } from "./middleware/cors-error-handler.js";
@@ -15,7 +16,9 @@ import { superAdminRoutes } from "./routes/super-admin.routes.js";
 export function createApp() {
   const app = express();
 
-  app.use(helmet());
+  app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  }));
   app.use(cors({
     origin(origin, callback) {
       if (isAllowedAppOrigin(origin)) {
@@ -29,6 +32,7 @@ export function createApp() {
   app.use(corsErrorHandler);
   app.use(express.json());
   app.use(requestContext);
+  app.use("/uploads", express.static(path.resolve(process.cwd(), "uploads")));
 
   app.use("/health", healthRoutes);
   app.use("/session", sessionRoutes);

@@ -12,6 +12,8 @@ superAdminRouter.get("/", auth(["super_admin"]), asyncHandler(companyController.
 superAdminRouter.get("/:id", auth(["super_admin"]), validate(companyIdSchema), asyncHandler(companyController.getById));
 superAdminRouter.post("/", auth(["super_admin"]), validate(createCompanySchema), asyncHandler(companyController.create));
 superAdminRouter.patch("/:id", auth(["super_admin"]), validate(companyIdSchema), validate(updateCompanySchema), asyncHandler(companyController.updateById));
+superAdminRouter.put("/:id", auth(["super_admin"]), validate(companyIdSchema), validate(updateCompanySchema), asyncHandler(companyController.updateById));
+superAdminRouter.delete("/:id", auth(["super_admin"]), validate(companyIdSchema), asyncHandler(companyController.deleteById));
 adminRouter.get("/me", auth(["admin", "staff"]), asyncHandler(companyController.getCurrent));
 adminRouter.patch("/me", auth(["admin"]), validate(updateCompanySchema), asyncHandler(companyController.updateCurrent));
 

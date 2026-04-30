@@ -6,6 +6,7 @@ import { keycloakAdminService } from "../../shared/security/keycloak-admin.js";
 import { tierSettingsService } from "../../company-service/tier-settings/service.js";
 import { createQrToken, verifyQrToken } from "../../shared/security/qr-token.js";
 import { emitPointsUpdate, emitVisitAdded } from "../../shared/realtime/events.js";
+import { pushNotificationService } from "../../shared/notifications/push-service.js";
 
 function normalizeEmail(email) {
   return email?.trim().toLowerCase() || "";
@@ -41,7 +42,7 @@ export const clientService = {
       throw new AppError(404, "Client account was not found.");
     }
 
-    return client;
+    return tierSettingsService.attachTiers(scopedAccountId, client);
   },
   async getSelfQrToken(accountId, keycloakId) {
     let client = await clientStore.findAnyByKeycloakIdWithSecret(keycloakId);
@@ -68,9 +69,10 @@ export const clientService = {
   async updateSelf(accountId, keycloakId, payload) {
     const client = await this.getSelf(accountId, keycloakId);
 
-    return clientStore.updateById(client.accountId, client.id, {
+    const updated = await clientStore.updateById(client.accountId, client.id, {
       ...(payload.avatarUrl !== undefined ? { avatarUrl: payload.avatarUrl.trim() } : {}),
     });
+    return tierSettingsService.attachTiers(client.accountId, updated);
   },
   async changeSelfPassword(accountId, keycloakId, password) {
     const client = await this.getSelf(accountId, keycloakId);
@@ -82,7 +84,8 @@ export const clientService = {
       return clientStore.list(search?.trim(), { includeArchived });
     }
 
-    return clientStore.listByAccountId(accountId, search?.trim(), { includeArchived });
+    const clients = await clientStore.listByAccountId(accountId, search?.trim(), { includeArchived });
+    return tierSettingsService.attachTiers(accountId, clients);
   },
   async getClientById(accountId, id) {
     const scopedAccountId = requireAccountScope(accountId);
@@ -92,7 +95,7 @@ export const clientService = {
       throw new AppError(404, "Client was not found.");
     }
 
-    return client;
+    return tierSettingsService.attachTiers(scopedAccountId, client);
   },
   async previewClientByQrToken(accountId, qrToken) {
     const scopedAccountId = requireAccountScope(accountId);
@@ -111,11 +114,14 @@ export const clientService = {
       throw new AppError(403, "Client does not belong to this tenant.");
     }
 
+    const enrichedClient = await tierSettingsService.attachTiers(scopedAccountId, client);
+
     return {
       id: client.id,
       name: client.name,
       phone: client.phone,
-      tier: client.tier,
+      tierId: client.tierId,
+      tier: enrichedClient.tier,
       points: client.points,
     };
   },
@@ -128,9 +134,14 @@ export const clientService = {
     const email = normalizeEmail(payload.email);
     const dateOfBirth = payload.dateOfBirth ? new Date(payload.dateOfBirth) : null;
     const name = `${firstName} ${lastName}`.trim();
+    const tierId = payload.tierId?.trim() || null;
 
     if (await clientStore.findByPhone(scopedAccountId, phone)) {
       throw new AppError(409, "A client with this phone number already exists for this company.");
+    }
+
+    if (tierId && !await tierSettingsService.getTier(scopedAccountId, tierId)) {
+      throw new AppError(422, "Selected tier was not found.");
     }
 
     const temporaryPassword = payload.password?.trim() || generateTemporaryPassword();
@@ -169,7 +180,7 @@ export const clientService = {
       points: 0,
       visits: 0,
       redemptionsCount: 0,
-      tier: "Silver",
+      tierId,
       status: "active",
       birthdayAvailable: false,
       birthdayAvailableYear: null,
@@ -177,7 +188,7 @@ export const clientService = {
     });
 
     return {
-      client,
+      client: await tierSettingsService.attachTiers(scopedAccountId, client),
       temporaryPassword: payload.password?.trim() ? null : temporaryPassword,
     };
   },
@@ -196,10 +207,15 @@ export const clientService = {
     const dateOfBirth = payload.dateOfBirth !== undefined
       ? (payload.dateOfBirth ? new Date(payload.dateOfBirth) : null)
       : existing.dateOfBirth || null;
+    const tierId = payload.tierId !== undefined ? (payload.tierId?.trim() || null) : existing.tierId || null;
     const duplicatePhoneClient = phone !== existing.phone ? await clientStore.findByPhone(scopedAccountId, phone) : null;
 
     if (duplicatePhoneClient && duplicatePhoneClient.id !== existing.id) {
       throw new AppError(409, "A client with this phone number already exists for this company.");
+    }
+
+    if (tierId && !await tierSettingsService.getTier(scopedAccountId, tierId)) {
+      throw new AppError(422, "Selected tier was not found.");
     }
 
     await keycloakAdminService.updateUser(existing.keycloakId, {
@@ -209,15 +225,17 @@ export const clientService = {
       lastName,
     });
 
-    return clientStore.updateById(scopedAccountId, id, {
+    const updated = await clientStore.updateById(scopedAccountId, id, {
       firstName,
       lastName,
       username,
       name: `${firstName} ${lastName}`.trim(),
+      tierId,
       ...(payload.phone !== undefined ? { phone } : {}),
       ...(payload.email !== undefined ? { email: normalizeEmail(payload.email) } : {}),
       ...(payload.dateOfBirth !== undefined ? { dateOfBirth } : {}),
     });
+    return tierSettingsService.attachTiers(scopedAccountId, updated);
   },
   async deleteClient(accountId, id) {
     const scopedAccountId = requireAccountScope(accountId);
@@ -229,7 +247,7 @@ export const clientService = {
 
     await keycloakAdminService.disableUser(existing.keycloakId);
     const client = await clientStore.archiveById(scopedAccountId, id);
-    return client;
+    return tierSettingsService.attachTiers(scopedAccountId, client);
   },
   async restoreClient(accountId, id) {
     const scopedAccountId = requireAccountScope(accountId);
@@ -246,7 +264,7 @@ export const clientService = {
       firstName: existing.firstName,
       lastName: existing.lastName,
     });
-    return client;
+    return tierSettingsService.attachTiers(scopedAccountId, client);
   },
   async addPoints(accountId, id, payload) {
     const scopedAccountId = requireAccountScope(accountId);
@@ -264,8 +282,13 @@ export const clientService = {
       points: payload.points,
       visits: 1,
     });
-    const nextTier = await tierSettingsService.resolveTier(scopedAccountId, updatedMetrics.visits, updatedMetrics.redemptionsCount);
-    const updated = await clientStore.updateById(scopedAccountId, id, { tier: nextTier });
+    const previousTierId = updatedMetrics.tierId;
+    const nextTier = await tierSettingsService.resolveTierByVisits(scopedAccountId, updatedMetrics.visits);
+    const nextClient = nextTier && nextTier.id !== updatedMetrics.tierId
+      ? await clientStore.updateById(scopedAccountId, id, { tierId: nextTier.id })
+      : updatedMetrics;
+    const updated = await tierSettingsService.attachTiers(scopedAccountId, nextClient);
+    const tierChanged = Boolean(nextTier && nextTier.id !== previousTierId);
 
     const transaction = await transactionService.createTransaction(scopedAccountId, {
       clientId: id,
@@ -275,6 +298,9 @@ export const clientService = {
       description: payload.description,
     });
     emitPointsUpdate(updated, payload.points, transaction);
+    if (tierChanged) {
+      pushNotificationService.notifyTierUpgrade(updated);
+    }
 
     return updated;
   },
@@ -297,8 +323,13 @@ export const clientService = {
       visits: 1,
       ...(awardedPoints > 0 ? { points: awardedPoints } : {}),
     });
-    const nextTier = await tierSettingsService.resolveTier(scopedAccountId, updatedMetrics.visits, updatedMetrics.redemptionsCount);
-    const updated = await clientStore.updateById(scopedAccountId, id, { tier: nextTier });
+    const previousTierId = updatedMetrics.tierId;
+    const nextTier = await tierSettingsService.resolveTierByVisits(scopedAccountId, updatedMetrics.visits);
+    const nextClient = nextTier && nextTier.id !== updatedMetrics.tierId
+      ? await clientStore.updateById(scopedAccountId, id, { tierId: nextTier.id })
+      : updatedMetrics;
+    const updated = await tierSettingsService.attachTiers(scopedAccountId, nextClient);
+    const tierChanged = Boolean(nextTier && nextTier.id !== previousTierId);
     let transaction = null;
 
     if (awardedPoints > 0) {
@@ -312,6 +343,9 @@ export const clientService = {
     }
 
     emitVisitAdded(updated, awardedPoints, transaction);
+    if (tierChanged) {
+      pushNotificationService.notifyTierUpgrade(updated);
+    }
 
     return updated;
   },
@@ -335,8 +369,7 @@ export const clientService = {
       points: -payload.points,
       redemptionsCount: 1,
     });
-    const nextTier = await tierSettingsService.resolveTier(scopedAccountId, updatedMetrics.visits, updatedMetrics.redemptionsCount);
-    const updated = await clientStore.updateById(scopedAccountId, id, { tier: nextTier });
+    const updated = await tierSettingsService.attachTiers(scopedAccountId, updatedMetrics);
 
     const transaction = await transactionService.createTransaction(scopedAccountId, {
       clientId: id,

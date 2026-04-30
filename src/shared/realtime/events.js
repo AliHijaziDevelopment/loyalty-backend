@@ -1,4 +1,5 @@
 import { emitToClient } from "./socket.js";
+import { pushNotificationService } from "../notifications/push-service.js";
 
 function buildBasePayload(client, amount, transaction = null) {
   return {
@@ -6,7 +7,8 @@ function buildBasePayload(client, amount, transaction = null) {
     keycloakId: client.keycloakId,
     updatedPoints: client.points,
     amount,
-    updatedTier: client.tier,
+    updatedTierId: client.tierId || null,
+    updatedTier: client.tier || null,
     visits: client.visits,
     redemptionsCount: client.redemptionsCount,
     transaction,
@@ -15,6 +17,7 @@ function buildBasePayload(client, amount, transaction = null) {
 
 export function emitPointsUpdate(client, amount, transaction = null) {
   emitToClient(client.keycloakId, "points_update", buildBasePayload(client, amount, transaction));
+  pushNotificationService.notifyPointsEarned(client, amount);
 }
 
 export function emitRewardRedeemed(client, amount, reward, transaction = null) {
@@ -32,6 +35,7 @@ export function emitRewardRedeemed(client, amount, reward, transaction = null) {
 
 export function emitVisitAdded(client, amount, transaction = null) {
   emitToClient(client.keycloakId, "visit_added", buildBasePayload(client, amount, transaction));
+  pushNotificationService.notifyPointsEarned(client, amount);
 }
 
 export function emitRewardUsed(client, claim) {
@@ -42,6 +46,7 @@ export function emitRewardUsed(client, claim) {
     status: claim.status,
     usedAt: claim.usedAt,
   });
+  pushNotificationService.notifyRewardUsed(client, claim);
 }
 
 export function emitRewardReceived(client, claim) {
@@ -54,6 +59,7 @@ export function emitRewardReceived(client, claim) {
     source: claim.source,
     message: claim.message || "",
   });
+  pushNotificationService.notifyRewardReceived(client, claim);
 }
 
 export function emitBirthdayAvailable(client, settings = null) {
@@ -62,4 +68,5 @@ export function emitBirthdayAvailable(client, settings = null) {
     available: true,
     message: settings?.message || "",
   });
+  pushNotificationService.notifyBirthdayAvailable(client);
 }

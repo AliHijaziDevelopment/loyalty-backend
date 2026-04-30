@@ -2,7 +2,7 @@ import { AppError } from "../../shared/errors/app-error.js";
 import { clientStore } from "../../client-service/clients/model.js";
 import { rewardClaimsService } from "../../rewards-service/reward-claims/service.js";
 import { rewardsStore } from "../../rewards-service/rewards/model.js";
-import { emitBirthdayAvailable } from "../../shared/realtime/events.js";
+import { emitBirthdayAvailable, emitRewardReceived } from "../../shared/realtime/events.js";
 import { birthdaySettingsService } from "../birthday-settings/service.js";
 
 function hasBirthdayToday(date) {
@@ -172,6 +172,7 @@ export const birthdayRewardService = {
       birthdayAllowOverride: false,
     });
 
+    emitRewardReceived(client, claim);
     return claim;
   },
   async runDailyBirthdayRewards() {

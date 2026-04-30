@@ -42,6 +42,7 @@ export const sessionService = {
         expectedTenant: null,
         redirectUrl: null,
         birthdayAvailable: false,
+        companySettings: null,
       };
     }
 
@@ -65,6 +66,11 @@ export const sessionService = {
           })
         : null,
       birthdayAvailable: auth.role === "client" ? Boolean(auth.client?.birthdayAvailable) : false,
+      companySettings: expectedCompany
+        ? {
+            notificationRewardPoints: expectedCompany.notificationRewardPoints || 0,
+          }
+        : null,
     };
   },
 };

@@ -1,57 +1,77 @@
-const integerField = (label) => (value) => (
-  Number.isInteger(value) && value >= 0 ? null : `${label} must be a non-negative integer.`
-);
+const requiredText = (label) => (value) => {
+  if (typeof value !== "string" || value.trim().length < 2) {
+    return `${label} must be at least 2 characters.`;
+  }
 
-function validateTier(expectedName) {
-  return (value) => {
-    if (!value || typeof value !== "object") {
-      return `${expectedName} tier configuration is required.`;
-    }
+  return null;
+};
 
-    if (value.name !== expectedName) {
-      return `${expectedName} tier name must be "${expectedName}".`;
-    }
-
-    if (integerField(`${expectedName}.minVisits`)(value.minVisits)) {
-      return `${expectedName} minVisits must be a non-negative integer.`;
-    }
-
-    if (integerField(`${expectedName}.minRedemptions`)(value.minRedemptions)) {
-      return `${expectedName} minRedemptions must be a non-negative integer.`;
-    }
-
+const optionalText = (label) => (value) => {
+  if (value === undefined || value === "") {
     return null;
-  };
-}
+  }
 
-export const saveTierSettingsSchema = {
+  return requiredText(label)(value);
+};
+
+const optionalBoolean = (label) => (value) => {
+  if (value === undefined || typeof value === "boolean") {
+    return null;
+  }
+
+  return `${label} must be boolean.`;
+};
+
+const percentage = (value) => {
+  if (!Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) > 100) {
+    return "discountPercentage must be between 0 and 100.";
+  }
+
+  return null;
+};
+
+const nonNegativeInteger = (label) => (value) => {
+  if (!Number.isInteger(Number(value)) || Number(value) < 0) {
+    return `${label} must be a non-negative integer.`;
+  }
+
+  return null;
+};
+
+const optionalHexColor = (value) => {
+  if (value === undefined || value === "") {
+    return null;
+  }
+
+  if (typeof value !== "string" || !/^#[0-9a-fA-F]{6}$/.test(value.trim())) {
+    return "cardColor must be a valid hex color.";
+  }
+
+  return null;
+};
+
+export const tierIdSchema = {
+  params: {
+    id: (value) => (typeof value === "string" && value.trim().length >= 10 ? null : "id must be valid."),
+  },
+};
+
+export const createTierSchema = {
   body: {
-    tiers: (value) => {
-      if (!Array.isArray(value) || value.length !== 3) {
-        return "tiers must contain exactly Silver, Gold, and VIP.";
-      }
+    name: requiredText("name"),
+    discountPercentage: percentage,
+    minVisits: nonNegativeInteger("minVisits"),
+    cardColor: optionalHexColor,
+    isActive: optionalBoolean("isActive"),
+  },
+};
 
-      const validators = {
-        Silver: validateTier("Silver"),
-        Gold: validateTier("Gold"),
-        VIP: validateTier("VIP"),
-      };
-
-      for (const tier of value) {
-        const validator = validators[tier?.name];
-
-        if (!validator) {
-          return "tiers must only include Silver, Gold, and VIP.";
-        }
-
-        const error = validator(tier);
-
-        if (error) {
-          return error;
-        }
-      }
-
-      return null;
-    },
+export const updateTierSchema = {
+  body: {
+    name: optionalText("name"),
+    discountPercentage: (value) => (value === undefined ? null : percentage(value)),
+    minVisits: (value) => (value === undefined ? null : nonNegativeInteger("minVisits")(value)),
+    cardColor: optionalHexColor,
+    isActive: optionalBoolean("isActive"),
   },
 };

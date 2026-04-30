@@ -5,8 +5,9 @@ function resolveAccountScope(req) {
 }
 
 export const companyController = {
-  async list(_req, res) {
-    res.json({ data: await companyService.listCompanies() });
+  async list(req, res) {
+    const result = await companyService.listCompanies(req.query);
+    res.json(result);
   },
   async getById(req, res) {
     res.json({ data: await companyService.getCompanyById(req.params.id) });
@@ -22,5 +23,8 @@ export const companyController = {
   },
   async updateById(req, res) {
     res.json({ data: await companyService.updateCompanyById(req.params.id, req.body) });
+  },
+  async deleteById(req, res) {
+    res.json({ data: await companyService.deleteCompanyById(req.params.id) });
   },
 };

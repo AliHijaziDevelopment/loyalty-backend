@@ -1,46 +1,44 @@
 import mongoose from "mongoose";
 
-const tierThresholdSchema = new mongoose.Schema(
+const tierSchema = new mongoose.Schema(
   {
-    name: {
+    companyId: {
       type: String,
       required: true,
-      enum: ["Silver", "Gold", "VIP"],
-      trim: true,
-    },
-    minVisits: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
-    minRedemptions: {
-      type: Number,
-      required: true,
-      min: 0,
-    },
-  },
-  {
-    _id: false,
-  },
-);
-
-const tierSettingsSchema = new mongoose.Schema(
-  {
-    accountId: {
-      type: String,
-      required: true,
-      unique: true,
       index: true,
       trim: true,
     },
-    tiers: {
-      type: [tierThresholdSchema],
+    name: {
+      type: String,
       required: true,
-      default: [
-        { name: "Silver", minVisits: 0, minRedemptions: 0 },
-        { name: "Gold", minVisits: 5, minRedemptions: 1 },
-        { name: "VIP", minVisits: 10, minRedemptions: 3 },
-      ],
+      trim: true,
+    },
+    discountPercentage: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 100,
+    },
+    minVisits: {
+      type: Number,
+      default: 0,
+      min: 0,
+      index: true,
+    },
+    cardColor: {
+      type: String,
+      default: "#7c3aed",
+      trim: true,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+      index: true,
     },
   },
   {
@@ -49,7 +47,11 @@ const tierSettingsSchema = new mongoose.Schema(
   },
 );
 
-tierSettingsSchema.set("toJSON", {
+tierSchema.index({ companyId: 1, name: 1, deletedAt: 1 }, { unique: true });
+tierSchema.index({ companyId: 1, isActive: 1 });
+tierSchema.index({ companyId: 1, minVisits: 1 });
+
+tierSchema.set("toJSON", {
   transform: (_doc, ret) => {
     ret.id = ret._id.toString();
     delete ret._id;
@@ -57,9 +59,9 @@ tierSettingsSchema.set("toJSON", {
   },
 });
 
-export const TierSettingsModel = mongoose.models.TierSettings || mongoose.model("TierSettings", tierSettingsSchema);
+export const TierModel = mongoose.models.Tier || mongoose.model("Tier", tierSchema);
 
-const normalize = (document) => {
+const normalizeTier = (document) => {
   if (!document) {
     return null;
   }
@@ -75,24 +77,56 @@ const normalize = (document) => {
   };
 };
 
-export const defaultTierSettings = {
-  accountId: "",
-  tiers: [
-    { name: "Silver", minVisits: 0, minRedemptions: 0 },
-    { name: "Gold", minVisits: 5, minRedemptions: 1 },
-    { name: "VIP", minVisits: 10, minRedemptions: 3 },
-  ],
-};
+export const tierStore = {
+  async list(companyId, filters = {}) {
+    const query = { companyId, deletedAt: null };
 
-export const tierSettingsStore = {
-  async findByAccountId(accountId) {
-    return normalize(await TierSettingsModel.findOne({ accountId }));
+    if (filters.activeOnly) {
+      query.isActive = true;
+    }
+
+    if (filters.search) {
+      query.name = { $regex: filters.search, $options: "i" };
+    }
+
+    const tiers = await TierModel.find(query).sort({ createdAt: -1 });
+    return { data: tiers.map(normalizeTier) };
   },
-  async upsert(accountId, payload) {
-    return normalize(await TierSettingsModel.findOneAndUpdate(
-      { accountId },
-      { $set: { tiers: payload.tiers } },
-      { new: true, upsert: true, setDefaultsOnInsert: true },
+  async findById(companyId, id) {
+    return normalizeTier(await TierModel.findOne({ _id: id, companyId, deletedAt: null }));
+  },
+  async findManyByIds(companyId, ids) {
+    if (!ids.length) {
+      return [];
+    }
+
+    const tiers = await TierModel.find({ _id: { $in: ids }, companyId, deletedAt: null });
+    return tiers.map(normalizeTier);
+  },
+  async create(companyId, payload) {
+    const tier = await TierModel.create({
+      companyId,
+      name: payload.name,
+      discountPercentage: payload.discountPercentage ?? 0,
+      minVisits: payload.minVisits ?? 0,
+      cardColor: payload.cardColor || "#7c3aed",
+      isActive: payload.isActive ?? true,
+    });
+
+    return tier.toJSON();
+  },
+  async updateById(companyId, id, payload) {
+    return normalizeTier(await TierModel.findOneAndUpdate(
+      { _id: id, companyId, deletedAt: null },
+      { $set: payload },
+      { new: true },
+    ));
+  },
+  async softDeleteById(companyId, id) {
+    return normalizeTier(await TierModel.findOneAndUpdate(
+      { _id: id, companyId, deletedAt: null },
+      { $set: { isActive: false, deletedAt: new Date() } },
+      { new: true },
     ));
   },
 };

@@ -52,4 +52,7 @@ export const env = {
   keycloakAdminClientSecret: process.env.KEYCLOAK_ADMIN_CLIENT_SECRET || "",
   qrTokenSecret: process.env.QR_TOKEN_SECRET || "dev-qr-secret",
   qrTokenTtlMinutes: Number(process.env.QR_TOKEN_TTL_MINUTES || 15),
+  firebaseProjectId: process.env.FIREBASE_PROJECT_ID || "",
+  firebaseClientEmail: process.env.FIREBASE_CLIENT_EMAIL || "",
+  firebasePrivateKey: process.env.FIREBASE_PRIVATE_KEY || "",
 };

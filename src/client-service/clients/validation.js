@@ -83,6 +83,18 @@ const optionalDate = (label) => (value) => {
   return null;
 };
 
+const optionalId = (label) => (value) => {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+
+  if (typeof value !== "string" || value.trim().length < 10) {
+    return `${label} must be valid when provided.`;
+  }
+
+  return null;
+};
+
 const qrTokenValue = (value) => {
   if (typeof value !== "string" || value.trim().length < 20) {
     return "qrToken must be valid.";
@@ -120,6 +132,7 @@ export const createClientSchema = {
     email: optionalEmail,
     password: optionalPassword,
     dateOfBirth: optionalDate("dateOfBirth"),
+    tierId: optionalId("tierId"),
   },
 };
 
@@ -141,6 +154,7 @@ export const updateClientSchema = {
       return optionalEmail(value);
     },
     dateOfBirth: optionalDate("dateOfBirth"),
+    tierId: optionalId("tierId"),
   },
 };
 
